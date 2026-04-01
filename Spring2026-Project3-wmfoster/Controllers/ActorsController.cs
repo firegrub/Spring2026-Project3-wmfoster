@@ -1,31 +1,30 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Spring2026_Project3_wmfoster.Data;
 using Spring2026_Project3_wmfoster.Models;
+using Spring2026_Project3_wmfoster.Services;
+using Spring2026_Project3_wmfoster.ViewModels;
 
 namespace Spring2026_Project3_wmfoster.Controllers
 {
     public class ActorsController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly AiService _aiService;
+        private readonly SentimentService _sentimentService;
 
-        public ActorsController(ApplicationDbContext context)
+        public ActorsController(ApplicationDbContext context, AiService aiService, SentimentService sentimentService)
         {
             _context = context;
+            _aiService = aiService;
+            _sentimentService = sentimentService;
         }
 
-        // GET: Actors
         public async Task<IActionResult> Index()
         {
             return View(await _context.Actors.ToListAsync());
         }
 
-        // GET: Actors/Details/5
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -34,24 +33,39 @@ namespace Spring2026_Project3_wmfoster.Controllers
             }
 
             var actor = await _context.Actors
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .Include(a => a.ActorMovies)
+                .ThenInclude(am => am.Movie)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
             if (actor == null)
             {
                 return NotFound();
             }
 
-            return View(actor);
+            var tweets = await _aiService.GenerateActorTweetsAsync(actor.Name);
+
+            var tweetItems = tweets.Select(t => new ActorTweetItemViewModel
+            {
+                Tweet = t,
+                Sentiment = _sentimentService.GetSentimentLabel(t)
+            }).ToList();
+
+            var vm = new ActorDetailsViewModel
+            {
+                Actor = actor,
+                Movies = actor.ActorMovies.Select(am => am.Movie!.Title).ToList(),
+                Tweets = tweetItems,
+                OverallSentiment = _sentimentService.GetAverageSentiment(tweets)
+            };
+
+            return View(vm);
         }
 
-        // GET: Actors/Create
         public IActionResult Create()
         {
             return View();
         }
 
-        // POST: Actors/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Actor actor, IFormFile? photoFile)
@@ -73,7 +87,6 @@ namespace Spring2026_Project3_wmfoster.Controllers
             return View(actor);
         }
 
-        // GET: Actors/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -86,12 +99,10 @@ namespace Spring2026_Project3_wmfoster.Controllers
             {
                 return NotFound();
             }
+
             return View(actor);
         }
 
-        // POST: Actors/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, Actor actor, IFormFile? photoFile)
@@ -128,7 +139,6 @@ namespace Spring2026_Project3_wmfoster.Controllers
             return View(actor);
         }
 
-        // GET: Actors/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -138,6 +148,7 @@ namespace Spring2026_Project3_wmfoster.Controllers
 
             var actor = await _context.Actors
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (actor == null)
             {
                 return NotFound();
@@ -146,7 +157,6 @@ namespace Spring2026_Project3_wmfoster.Controllers
             return View(actor);
         }
 
-        // POST: Actors/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)

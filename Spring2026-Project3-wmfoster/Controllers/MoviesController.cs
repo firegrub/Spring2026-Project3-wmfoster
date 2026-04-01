@@ -1,31 +1,30 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Spring2026_Project3_wmfoster.Data;
 using Spring2026_Project3_wmfoster.Models;
+using Spring2026_Project3_wmfoster.Services;
+using Spring2026_Project3_wmfoster.ViewModels;
 
 namespace Spring2026_Project3_wmfoster.Controllers
 {
     public class MoviesController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly AiService _aiService;
+        private readonly SentimentService _sentimentService;
 
-        public MoviesController(ApplicationDbContext context)
+        public MoviesController(ApplicationDbContext context, AiService aiService, SentimentService sentimentService)
         {
             _context = context;
+            _aiService = aiService;
+            _sentimentService = sentimentService;
         }
 
-        // GET: Movies
         public async Task<IActionResult> Index()
         {
             return View(await _context.Movies.ToListAsync());
         }
 
-        // GET: Movies/Details/5
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -34,24 +33,39 @@ namespace Spring2026_Project3_wmfoster.Controllers
             }
 
             var movie = await _context.Movies
+                .Include(m => m.ActorMovies)
+                .ThenInclude(am => am.Actor)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (movie == null)
             {
                 return NotFound();
             }
 
-            return View(movie);
+            var reviews = await _aiService.GenerateMovieReviewsAsync(movie.Title, movie.Genre, movie.YearOfRelease);
+
+            var reviewItems = reviews.Select(r => new MovieReviewItemViewModel
+            {
+                Review = r,
+                Sentiment = _sentimentService.GetSentimentLabel(r)
+            }).ToList();
+
+            var vm = new MovieDetailsViewModel
+            {
+                Movie = movie,
+                Actors = movie.ActorMovies.Select(am => am.Actor!.Name).ToList(),
+                Reviews = reviewItems,
+                AverageSentiment = _sentimentService.GetAverageSentiment(reviews)
+            };
+
+            return View(vm);
         }
 
-        // GET: Movies/Create
         public IActionResult Create()
         {
             return View();
         }
 
-        // POST: Movies/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Movie movie, IFormFile? posterFile)
@@ -73,7 +87,6 @@ namespace Spring2026_Project3_wmfoster.Controllers
             return View(movie);
         }
 
-        // GET: Movies/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -86,12 +99,10 @@ namespace Spring2026_Project3_wmfoster.Controllers
             {
                 return NotFound();
             }
+
             return View(movie);
         }
 
-        // POST: Movies/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, Movie movie, IFormFile? posterFile)
@@ -107,17 +118,17 @@ namespace Spring2026_Project3_wmfoster.Controllers
                 return NotFound();
             }
 
+            existingMovie.Title = movie.Title;
+            existingMovie.ImdbLink = movie.ImdbLink;
+            existingMovie.Genre = movie.Genre;
+            existingMovie.YearOfRelease = movie.YearOfRelease;
+
             if (posterFile != null && posterFile.Length > 0)
             {
                 using var ms = new MemoryStream();
                 await posterFile.CopyToAsync(ms);
                 existingMovie.Poster = ms.ToArray();
             }
-
-            existingMovie.Title = movie.Title;
-            existingMovie.ImdbLink = movie.ImdbLink;
-            existingMovie.Genre = movie.Genre;
-            existingMovie.YearOfRelease = movie.YearOfRelease;
 
             if (ModelState.IsValid)
             {
@@ -128,7 +139,6 @@ namespace Spring2026_Project3_wmfoster.Controllers
             return View(movie);
         }
 
-        // GET: Movies/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -138,6 +148,7 @@ namespace Spring2026_Project3_wmfoster.Controllers
 
             var movie = await _context.Movies
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (movie == null)
             {
                 return NotFound();
@@ -146,7 +157,6 @@ namespace Spring2026_Project3_wmfoster.Controllers
             return View(movie);
         }
 
-        // POST: Movies/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)

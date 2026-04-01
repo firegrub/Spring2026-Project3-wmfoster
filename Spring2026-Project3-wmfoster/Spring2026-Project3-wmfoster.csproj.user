@@ -12,5 +12,6 @@
     <WebStackScaffolding_DbContextTypeFullName>Spring2026_Project3_wmfoster.Data.ApplicationDbContext</WebStackScaffolding_DbContextTypeFullName>
     <WebStackScaffolding_IsAsyncSelected>False</WebStackScaffolding_IsAsyncSelected>
     <WebStackScaffolding_IsViewGenerationSelected>True</WebStackScaffolding_IsViewGenerationSelected>
+    <NameOfLastUsedPublishProfile>C:\dev\cs330\Spring2026-Project2-wmfoster\Spring2026-Project3-wmfoster\Spring2026-Project3-wmfoster\Properties\PublishProfiles\Spring2026-Project3-wmfoster - Zip Deploy.pubxml</NameOfLastUsedPublishProfile>
   </PropertyGroup>
 </Project>
